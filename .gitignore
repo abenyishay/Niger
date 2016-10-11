@@ -45,3 +45,36 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+
+# =========================
+# MS Office Files
+# =========================
+
+*.tmp
+
+# Word temporary
+~$*.doc*
+
+# Excel temporary
+~$*.xls*
+
+# Excel Backup File
+*.xlk
+
+# PowerPoint temporary
+~$*.ppt*
+
+
+# =========================
+# Stata Data Files
+# =========================
+
+*.dta*
+
+
+# =========================
+# PDFS
+# =========================
+
+*.pdf*

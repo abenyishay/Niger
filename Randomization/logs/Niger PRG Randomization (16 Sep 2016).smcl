@@ -1,0 +1,86 @@
+{smcl}
+{txt}{sf}{ul off}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}C:\Users\Ariel\Dropbox\AidData\Niger\Randomization\logs\Niger PRG Randomization (16 Sep 2016).smcl
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res}16 Sep 2016, 14:49:20
+{txt}
+{com}. 
+. * Import commune list
+. import excel "${c -(}file_path{c )-}\List of PRG-PA Communes for Randomization Sept 2016-KNnotes.xlsx", sheet("Input for Randomization") firstrow
+{res}{txt}
+{com}. 
+. * Confirm strata
+. egen cell=group(Region Urban Phase1)
+{txt}
+{com}. tab cell                                                // Agadez-urban-not phase 1 has only 1 commune (Bilma).  Combine cells for Agadez-urban by reassigning Bilma
+
+{txt}group(Regio {c |}
+    n Urban {c |}
+    Phase1) {c |}      Freq.     Percent        Cum.
+{hline 12}{c +}{hline 35}
+          1 {c |}{res}          3        6.25        6.25
+{txt}          2 {c |}{res}          6       12.50       18.75
+{txt}          3 {c |}{res}          1        2.08       20.83
+{txt}          4 {c |}{res}          3        6.25       27.08
+{txt}          5 {c |}{res}          5       10.42       37.50
+{txt}          6 {c |}{res}          3        6.25       43.75
+{txt}          7 {c |}{res}          3        6.25       50.00
+{txt}          8 {c |}{res}          5       10.42       60.42
+{txt}          9 {c |}{res}          9       18.75       79.17
+{txt}         10 {c |}{res}          4        8.33       87.50
+{txt}         11 {c |}{res}          3        6.25       93.75
+{txt}         12 {c |}{res}          3        6.25      100.00
+{txt}{hline 12}{c +}{hline 35}
+      Total {c |}{res}         48      100.00
+{txt}
+{com}. recode cell (3 = 4)
+{txt}(cell: 1 changes made)
+
+{com}. 
+. * For cells with odd number of communes, randomly assign count
+. bys cell: egen cell_count = count(Commune)
+{txt}
+{com}. ge                      odd = mod(cell_count,2)
+{txt}
+{com}. tempvar u
+{txt}
+{com}. ge              `u' = runiform()
+{txt}
+{com}. bys cell: replace `u'=`u'[1]
+{txt}(37 real changes made)
+
+{com}. ge              cell_count_draw = cell_count/2
+{txt}
+{com}. replace cell_count_draw = (cell_count + 1)/2 if odd & `u'>=0.5
+{txt}(12 real changes made)
+
+{com}. replace cell_count_draw = (cell_count - 1)/2 if odd & `u'<0.5
+{txt}(22 real changes made)
+
+{com}. 
+. * Confirm 24 Communes to be drawn:
+. tempvar z
+{txt}
+{com}. bys cell: ge    `z' = cell_count_draw*(_n==1)
+{txt}
+{com}. egen    total_draw = sum(`z')
+{txt}
+{com}. 
+. 
+. * Randomize within cell
+. gsample cell_count_draw, str(cell) wor gen(Treatment)
+{res}{txt}
+{com}. 
+. export excel Region Commune Treatment using "${c -(}tablepath{c )-}\Randomized list - $S_DATE.xls", firstrow(variables) replace
+{res}{txt}file C:\Users\Ariel\Dropbox\AidData\Niger\Randomization\tables\Randomized list - 16 Sep 2016.xls saved
+
+{com}. 
+. log close
+      {txt}name:  {res}<unnamed>
+       {txt}log:  {res}C:\Users\Ariel\Dropbox\AidData\Niger\Randomization\logs\Niger PRG Randomization (16 Sep 2016).smcl
+  {txt}log type:  {res}smcl
+ {txt}closed on:  {res}16 Sep 2016, 14:49:20
+{txt}{.-}
+{smcl}
+{txt}{sf}{ul off}
