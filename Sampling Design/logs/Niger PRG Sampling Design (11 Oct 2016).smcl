@@ -1,0 +1,895 @@
+{smcl}
+{com}{sf}{ul off}{txt}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}C:\Users\Ariel\Dropbox\AidData\Niger\Sampling Design\logs\Niger PRG Sampling Design (11 Oct 2016).smcl
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res}11 Oct 2016, 12:53:37
+{txt}
+{com}. 
+. * Import commune list
+. import excel "${c -(}file_path{c )-}\List of PRG-PA Communes for Randomization Sept 2016-KNnotes.xlsx", sheet("Input for Randomization") firstrow
+{res}{txt}
+{com}. 
+. * Confirm strata
+. egen cell=group(Region Urban Phase1)
+{txt}
+{com}. tab cell                                                // Agadez-urban-not phase 1 has only 1 commune (Bilma).  Combine cells for Agadez-urban by reassigning Bilma
+
+{txt}group(Regio {c |}
+    n Urban {c |}
+    Phase1) {c |}      Freq.     Percent        Cum.
+{hline 12}{c +}{hline 35}
+          1 {c |}{res}          3        6.25        6.25
+{txt}          2 {c |}{res}          6       12.50       18.75
+{txt}          3 {c |}{res}          1        2.08       20.83
+{txt}          4 {c |}{res}          3        6.25       27.08
+{txt}          5 {c |}{res}          5       10.42       37.50
+{txt}          6 {c |}{res}          3        6.25       43.75
+{txt}          7 {c |}{res}          3        6.25       50.00
+{txt}          8 {c |}{res}          5       10.42       60.42
+{txt}          9 {c |}{res}          9       18.75       79.17
+{txt}         10 {c |}{res}          4        8.33       87.50
+{txt}         11 {c |}{res}          3        6.25       93.75
+{txt}         12 {c |}{res}          3        6.25      100.00
+{txt}{hline 12}{c +}{hline 35}
+      Total {c |}{res}         48      100.00
+{txt}
+{com}. recode cell (3 = 4)
+{txt}(cell: 1 changes made)
+
+{com}. 
+. * For cells with odd number of communes, randomly assign count
+. bys cell: egen cell_count = count(Commune)
+{txt}
+{com}. ge                      odd = mod(cell_count,2)
+{txt}
+{com}. tempvar u
+{txt}
+{com}. ge              `u' = runiform()
+{txt}
+{com}. bys cell: replace `u'=`u'[1]
+{txt}(37 real changes made)
+
+{com}. ge              cell_count_draw = cell_count/2
+{txt}
+{com}. replace cell_count_draw = (cell_count + 1)/2 if odd & `u'>=0.5
+{txt}(12 real changes made)
+
+{com}. replace cell_count_draw = (cell_count - 1)/2 if odd & `u'<0.5
+{txt}(22 real changes made)
+
+{com}. 
+. * Confirm 24 Communes to be drawn:
+. tempvar z
+{txt}
+{com}. bys cell: ge    `z' = cell_count_draw*(_n==1)
+{txt}
+{com}. egen    total_draw = sum(`z')
+{txt}
+{com}. 
+. * Save
+. save "${c -(}file_path{c )-}\Randomization Frame", replace
+{txt}file C:\Users\Ariel\Dropbox\AidData\Niger\Sampling Design\Randomization Frame.dta saved
+
+{com}. 
+. 
+. ********************************************************************************
+. * Obtain outcome data from prior rounds of Afrobarometer, transfer/expand to our sample design
+. use "${c -(}project_path{c )-}\Secondary Data\Afrobarometer\r6\Afrobarometer_Niger_Round6.dta" , clear
+{txt}(Written by R.              )
+
+{com}. 
+. // Afrobarometer sample design: sample commune, sample 1-2 EAs within, sample 8 respondents per EA
+. // Here, we will use all data from three of our four regions: NIAMEY (1107), ZINDER (1106), and AGADEZ (1100)
+. // DIFFA region was not included in AB R6
+. 
+. keep if REGION==1100 | REGION==1106 | REGION==1107
+{txt}(808 observations deleted)
+
+{com}. 
+. * Identify questions of interest
+. // Citizen perceptions of government responsiveness to their own needs: 41, 44, 47, 50, 52, 59, 66, 67
+. // Generate aggregate measure by standardizing each and then averaging
+. 
+. ge mean = 0
+{txt}
+{com}. foreach v in 41 44 47A 47B 50 /* 52 */ 59A 59B /* 66 */ 67A 67B {c -(}
+{txt}  2{com}.         qui sum Q`v'
+{txt}  3{com}.         gen q`v' = (Q`v' - `r(mean)') /(`r(sd)')
+{txt}  4{com}.         loc list "`list' + q`v'_st"
+{txt}  5{com}.         replace mean = mean + q`v'
+{txt}  6{com}. {c )-}
+{txt}(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+
+{com}. 
+. replace mean = 1/9*mean
+{txt}(392 real changes made)
+
+{com}. qui su mean
+{txt}
+{com}. loc mean `r(mean)'
+{txt}
+{com}. 
+. * Expand from 8-16 to 30 per commune
+. * Parameterize intra-EA correlation
+. loneway mean EANUMB
+
+                    {txt}One-way Analysis of Variance for mean: 
+
+                                             Number of obs = {res}         392
+                                                 {txt}R-squared = {res}      0.1777
+
+{txt}{col 5}Source{col 27}SS{col 38}df{col 46}MS{col 60}F{col 66}Prob > F
+{hline 73}
+Between EANUMB{res}{col 23} 23.163261{col 34}    48{col 43} .48256795{col 54}     1.54{col 68}0.0156
+{txt}Within EANUMB{res}{col 23} 107.20382{col 34}   343{col 43} .31254758
+{txt}{hline 73}
+Total{res}{col 23} 130.36708{col 34}   391{col 43} .33341964
+
+{txt}{col 10}Intraclass{col 27}Asy.{col 39}
+{col 10}correlation{col 27}S.E.{col 38}[95% Conf. Interval]
+         {hline 48}
+          {res}  0.06367{txt}   {res}  0.03688       0.00000     0.13594
+
+{txt}{col 10}Estimated SD of EANUMB effect{res}{col 49} .1457825
+{txt}{col 10}Estimated SD within EANUMB{res}{col 49} .5590595
+{txt}{col 10}Est. reliability of a EANUMB mean{res}{col 49}  0.35232{txt}
+{col 15}(evaluated at n={res}8.00{txt})
+
+{com}. 
+. * Save parameters
+. loc sd_w = `r(sd_w)'
+{txt}
+{com}. loc sd_b = `r(sd_b)'
+{txt}
+{com}. 
+. 
+. *Return to randomization frame
+. use "${c -(}file_path{c )-}\Randomization Frame", clear 
+{txt}
+{com}. 
+. expand 3, gen(expand_village)
+{txt}(96 observations created)
+
+{com}. gen village_id = _n
+{txt}
+{com}. expand 10, gen(expand_hh)
+{txt}(1,296 observations created)
+
+{com}. tempvar z v t
+{txt}
+{com}. ge      `z'     = rnormal()*`sd_w'
+{txt}
+{com}. ge  `v' = rnormal()*`sd_b'
+{txt}
+{com}. bys village_id: replace `v'=`v'[1] 
+{txt}(1296 real changes made)
+
+{com}. 
+. * expand into time series
+. expand 2, gen(t)
+{txt}(1,440 observations created)
+
+{com}. ge      `t' = rnormal()*0.3*`r(sd_w)'
+{txt}
+{com}. gen mean = `mean' + `z' + `v' + `t' 
+{txt}
+{com}. 
+. END
+{err}command {bf}END{sf} is unrecognized
+{txt}{search r(199), local:r(199);}
+
+end of do-file
+
+{search r(199), local:r(199);}
+
+{com}. su
+
+{txt}    Variable {c |}        Obs        Mean    Std. Dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 6}Region {c |}{res}          0
+{txt}{space 5}Commune {c |}{res}          0
+{txt}{space 7}Urban {c |}{res}      2,880        .375     .484207          0          1
+{txt}{space 6}Phase1 {c |}{res}      2,880       .5625    .4961645          0          1
+{txt}Randomizat~l {c |}{res}      2,880    5.979167     3.21828          1         11
+{txt}{hline 13}{c +}{hline 57}
+{space 8}cell {c |}{res}      2,880    6.770833    3.274452          1         12
+{txt}{space 2}cell_count {c |}{res}      2,880    5.083333    2.129859          3          9
+{txt}{space 9}odd {c |}{res}      2,880    .7083333    .4546086          0          1
+{txt}cell_count~w {c |}{res}      2,880      2.4375    .8639172          1          4
+{txt}{space 2}total_draw {c |}{res}      2,880          24           0         24         24
+{txt}{hline 13}{c +}{hline 57}
+expand_vil~e {c |}{res}      2,880    .6666667    .4714864          0          1
+{txt}{space 2}village_id {c |}{res}      2,880        72.5    41.57544          1        144
+{txt}{space 3}expand_hh {c |}{res}      2,880          .9    .3000521          0          1
+{txt}{space 11}t {c |}{res}      2,880          .5    .5000868          0          1
+{txt}{space 8}mean {c |}{res}      2,880    .0050564    .6159677  -2.088069   1.880798
+
+{com}. reg mean i.village
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}     2,880
+{txt}{hline 13}{c +}{hline 34}   F(143, 2736)    = {res}     3.82
+{txt}       Model {c |} {res} 181.954175       143  1.27240682   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 910.385175     2,736   .33274312   {txt}R-squared       ={res}    0.1666
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.1230
+{txt}       Total {c |} {res} 1092.33935     2,879  .379416238   {txt}Root MSE        =   {res} .57684
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}        mean{col 14}{c |}      Coef.{col 26}   Std. Err.{col 38}      t{col 46}   P>|t|{col 54}     [95% Con{col 67}f. Interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 2}village_id {c |}
+{space 10}2  {c |}{col 14}{res}{space 2}-.4769334{col 26}{space 2} .1824125{col 37}{space 1}   -2.61{col 46}{space 3}0.009{col 54}{space 4}-.8346135{col 67}{space 3}-.1192533
+{txt}{space 10}3  {c |}{col 14}{res}{space 2}-.0432218{col 26}{space 2} .1824125{col 37}{space 1}   -0.24{col 46}{space 3}0.813{col 54}{space 4} -.400902{col 67}{space 3} .3144583
+{txt}{space 10}4  {c |}{col 14}{res}{space 2} .1419488{col 26}{space 2} .1824125{col 37}{space 1}    0.78{col 46}{space 3}0.437{col 54}{space 4}-.2157313{col 67}{space 3}  .499629
+{txt}{space 10}5  {c |}{col 14}{res}{space 2}-.6359814{col 26}{space 2} .1824125{col 37}{space 1}   -3.49{col 46}{space 3}0.000{col 54}{space 4}-.9936615{col 67}{space 3}-.2783013
+{txt}{space 10}6  {c |}{col 14}{res}{space 2}-.1356935{col 26}{space 2} .1824125{col 37}{space 1}   -0.74{col 46}{space 3}0.457{col 54}{space 4}-.4933736{col 67}{space 3} .2219866
+{txt}{space 10}7  {c |}{col 14}{res}{space 2} .0818444{col 26}{space 2} .1824125{col 37}{space 1}    0.45{col 46}{space 3}0.654{col 54}{space 4}-.2758357{col 67}{space 3} .4395245
+{txt}{space 10}8  {c |}{col 14}{res}{space 2} .1163837{col 26}{space 2} .1824125{col 37}{space 1}    0.64{col 46}{space 3}0.524{col 54}{space 4}-.2412964{col 67}{space 3} .4740639
+{txt}{space 10}9  {c |}{col 14}{res}{space 2}-.0031577{col 26}{space 2} .1824125{col 37}{space 1}   -0.02{col 46}{space 3}0.986{col 54}{space 4}-.3608378{col 67}{space 3} .3545224
+{txt}{space 9}10  {c |}{col 14}{res}{space 2} -.150487{col 26}{space 2} .1824125{col 37}{space 1}   -0.82{col 46}{space 3}0.409{col 54}{space 4}-.5081671{col 67}{space 3} .2071932
+{txt}{space 9}11  {c |}{col 14}{res}{space 2}-.3599119{col 26}{space 2} .1824125{col 37}{space 1}   -1.97{col 46}{space 3}0.049{col 54}{space 4} -.717592{col 67}{space 3}-.0022317
+{txt}{space 9}12  {c |}{col 14}{res}{space 2}-.2537889{col 26}{space 2} .1824125{col 37}{space 1}   -1.39{col 46}{space 3}0.164{col 54}{space 4} -.611469{col 67}{space 3} .1038913
+{txt}{space 9}13  {c |}{col 14}{res}{space 2} .1600603{col 26}{space 2} .1824125{col 37}{space 1}    0.88{col 46}{space 3}0.380{col 54}{space 4}-.1976198{col 67}{space 3} .5177404
+{txt}{space 9}14  {c |}{col 14}{res}{space 2} .2533442{col 26}{space 2} .1824125{col 37}{space 1}    1.39{col 46}{space 3}0.165{col 54}{space 4}-.1043359{col 67}{space 3} .6110243
+{txt}{space 9}15  {c |}{col 14}{res}{space 2} .1333456{col 26}{space 2} .1824125{col 37}{space 1}    0.73{col 46}{space 3}0.465{col 54}{space 4}-.2243345{col 67}{space 3} .4910257
+{txt}{space 9}16  {c |}{col 14}{res}{space 2}-.8142997{col 26}{space 2} .1824125{col 37}{space 1}   -4.46{col 46}{space 3}0.000{col 54}{space 4} -1.17198{col 67}{space 3}-.4566196
+{txt}{space 9}17  {c |}{col 14}{res}{space 2}-.1136904{col 26}{space 2} .1824125{col 37}{space 1}   -0.62{col 46}{space 3}0.533{col 54}{space 4}-.4713705{col 67}{space 3} .2439897
+{txt}{space 9}18  {c |}{col 14}{res}{space 2}-.2787804{col 26}{space 2} .1824125{col 37}{space 1}   -1.53{col 46}{space 3}0.127{col 54}{space 4}-.6364606{col 67}{space 3} .0788997
+{txt}{space 9}19  {c |}{col 14}{res}{space 2}-.1742875{col 26}{space 2} .1824125{col 37}{space 1}   -0.96{col 46}{space 3}0.339{col 54}{space 4}-.5319676{col 67}{space 3} .1833926
+{txt}{space 9}20  {c |}{col 14}{res}{space 2}-.2391273{col 26}{space 2} .1824125{col 37}{space 1}   -1.31{col 46}{space 3}0.190{col 54}{space 4}-.5968074{col 67}{space 3} .1185529
+{txt}{space 9}21  {c |}{col 14}{res}{space 2}-.2563811{col 26}{space 2} .1824125{col 37}{space 1}   -1.41{col 46}{space 3}0.160{col 54}{space 4}-.6140613{col 67}{space 3}  .101299
+{txt}{space 9}22  {c |}{col 14}{res}{space 2} .2686609{col 26}{space 2} .1824125{col 37}{space 1}    1.47{col 46}{space 3}0.141{col 54}{space 4}-.0890193{col 67}{space 3}  .626341
+{txt}{space 9}23  {c |}{col 14}{res}{space 2} .1255827{col 26}{space 2} .1824125{col 37}{space 1}    0.69{col 46}{space 3}0.491{col 54}{space 4}-.2320974{col 67}{space 3} .4832628
+{txt}{space 9}24  {c |}{col 14}{res}{space 2}-.1691751{col 26}{space 2} .1824125{col 37}{space 1}   -0.93{col 46}{space 3}0.354{col 54}{space 4}-.5268552{col 67}{space 3}  .188505
+{txt}{space 9}25  {c |}{col 14}{res}{space 2} .1112983{col 26}{space 2} .1824125{col 37}{space 1}    0.61{col 46}{space 3}0.542{col 54}{space 4}-.2463818{col 67}{space 3} .4689784
+{txt}{space 9}26  {c |}{col 14}{res}{space 2} .0636595{col 26}{space 2} .1824125{col 37}{space 1}    0.35{col 46}{space 3}0.727{col 54}{space 4}-.2940207{col 67}{space 3} .4213396
+{txt}{space 9}27  {c |}{col 14}{res}{space 2}-.5805455{col 26}{space 2} .1824125{col 37}{space 1}   -3.18{col 46}{space 3}0.001{col 54}{space 4}-.9382257{col 67}{space 3}-.2228654
+{txt}{space 9}28  {c |}{col 14}{res}{space 2}-.2382065{col 26}{space 2} .1824125{col 37}{space 1}   -1.31{col 46}{space 3}0.192{col 54}{space 4}-.5958866{col 67}{space 3} .1194736
+{txt}{space 9}29  {c |}{col 14}{res}{space 2} .1599112{col 26}{space 2} .1824125{col 37}{space 1}    0.88{col 46}{space 3}0.381{col 54}{space 4}-.1977689{col 67}{space 3} .5175913
+{txt}{space 9}30  {c |}{col 14}{res}{space 2} .3889058{col 26}{space 2} .1824125{col 37}{space 1}    2.13{col 46}{space 3}0.033{col 54}{space 4} .0312257{col 67}{space 3}  .746586
+{txt}{space 9}31  {c |}{col 14}{res}{space 2}-.4520586{col 26}{space 2} .1824125{col 37}{space 1}   -2.48{col 46}{space 3}0.013{col 54}{space 4}-.8097387{col 67}{space 3}-.0943784
+{err}{hline 2}Break{hline 2}
+{txt}{search r(1), local:r(1);}
+
+{com}. reg mean i.village i.t
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}     2,880
+{txt}{hline 13}{c +}{hline 34}   F(144, 2735)    = {res}     3.80
+{txt}       Model {c |} {res} 181.956005       144  1.26358337   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 910.383345     2,735  .332864112   {txt}R-squared       ={res}    0.1666
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.1227
+{txt}       Total {c |} {res} 1092.33935     2,879  .379416238   {txt}Root MSE        =   {res} .57694
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}        mean{col 14}{c |}      Coef.{col 26}   Std. Err.{col 38}      t{col 46}   P>|t|{col 54}     [95% Con{col 67}f. Interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 2}village_id {c |}
+{space 10}2  {c |}{col 14}{res}{space 2}-.4769334{col 26}{space 2} .1824456{col 37}{space 1}   -2.61{col 46}{space 3}0.009{col 54}{space 4}-.8346786{col 67}{space 3}-.1191882
+{txt}{space 10}3  {c |}{col 14}{res}{space 2}-.0432218{col 26}{space 2} .1824456{col 37}{space 1}   -0.24{col 46}{space 3}0.813{col 54}{space 4} -.400967{col 67}{space 3} .3145234
+{txt}{space 10}4  {c |}{col 14}{res}{space 2} .1419488{col 26}{space 2} .1824456{col 37}{space 1}    0.78{col 46}{space 3}0.437{col 54}{space 4}-.2157964{col 67}{space 3}  .499694
+{txt}{space 10}5  {c |}{col 14}{res}{space 2}-.6359814{col 26}{space 2} .1824456{col 37}{space 1}   -3.49{col 46}{space 3}0.000{col 54}{space 4}-.9937266{col 67}{space 3}-.2782362
+{txt}{space 10}6  {c |}{col 14}{res}{space 2}-.1356935{col 26}{space 2} .1824456{col 37}{space 1}   -0.74{col 46}{space 3}0.457{col 54}{space 4}-.4934387{col 67}{space 3} .2220517
+{txt}{space 10}7  {c |}{col 14}{res}{space 2} .0818444{col 26}{space 2} .1824456{col 37}{space 1}    0.45{col 46}{space 3}0.654{col 54}{space 4}-.2759008{col 67}{space 3} .4395896
+{txt}{space 10}8  {c |}{col 14}{res}{space 2} .1163837{col 26}{space 2} .1824456{col 37}{space 1}    0.64{col 46}{space 3}0.524{col 54}{space 4}-.2413615{col 67}{space 3} .4741289
+{txt}{space 10}9  {c |}{col 14}{res}{space 2}-.0031577{col 26}{space 2} .1824456{col 37}{space 1}   -0.02{col 46}{space 3}0.986{col 54}{space 4}-.3609029{col 67}{space 3} .3545875
+{txt}{space 9}10  {c |}{col 14}{res}{space 2} -.150487{col 26}{space 2} .1824456{col 37}{space 1}   -0.82{col 46}{space 3}0.410{col 54}{space 4}-.5082322{col 67}{space 3} .2072582
+{txt}{space 9}11  {c |}{col 14}{res}{space 2}-.3599119{col 26}{space 2} .1824456{col 37}{space 1}   -1.97{col 46}{space 3}0.049{col 54}{space 4}-.7176571{col 67}{space 3}-.0021667
+{txt}{space 9}12  {c |}{col 14}{res}{space 2}-.2537889{col 26}{space 2} .1824456{col 37}{space 1}   -1.39{col 46}{space 3}0.164{col 54}{space 4}-.6115341{col 67}{space 3} .1039563
+{txt}{space 9}13  {c |}{col 14}{res}{space 2} .1600603{col 26}{space 2} .1824456{col 37}{space 1}    0.88{col 46}{space 3}0.380{col 54}{space 4}-.1976849{col 67}{space 3} .5178055
+{txt}{space 9}14  {c |}{col 14}{res}{space 2} .2533442{col 26}{space 2} .1824456{col 37}{space 1}    1.39{col 46}{space 3}0.165{col 54}{space 4} -.104401{col 67}{space 3} .6110894
+{txt}{space 9}15  {c |}{col 14}{res}{space 2} .1333456{col 26}{space 2} .1824456{col 37}{space 1}    0.73{col 46}{space 3}0.465{col 54}{space 4}-.2243996{col 67}{space 3} .4910908
+{txt}{space 9}16  {c |}{col 14}{res}{space 2}-.8142997{col 26}{space 2} .1824456{col 37}{space 1}   -4.46{col 46}{space 3}0.000{col 54}{space 4}-1.172045{col 67}{space 3}-.4565545
+{txt}{space 9}17  {c |}{col 14}{res}{space 2}-.1136904{col 26}{space 2} .1824456{col 37}{space 1}   -0.62{col 46}{space 3}0.533{col 54}{space 4}-.4714356{col 67}{space 3} .2440548
+{txt}{space 9}18  {c |}{col 14}{res}{space 2}-.2787804{col 26}{space 2} .1824456{col 37}{space 1}   -1.53{col 46}{space 3}0.127{col 54}{space 4}-.6365256{col 67}{space 3} .0789648
+{txt}{space 9}19  {c |}{col 14}{res}{space 2}-.1742875{col 26}{space 2} .1824456{col 37}{space 1}   -0.96{col 46}{space 3}0.340{col 54}{space 4}-.5320327{col 67}{space 3} .1834577
+{txt}{space 9}20  {c |}{col 14}{res}{space 2}-.2391273{col 26}{space 2} .1824456{col 37}{space 1}   -1.31{col 46}{space 3}0.190{col 54}{space 4}-.5968725{col 67}{space 3} .1186179
+{txt}{space 9}21  {c |}{col 14}{res}{space 2}-.2563811{col 26}{space 2} .1824456{col 37}{space 1}   -1.41{col 46}{space 3}0.160{col 54}{space 4}-.6141263{col 67}{space 3} .1013641
+{txt}{space 9}22  {c |}{col 14}{res}{space 2} .2686609{col 26}{space 2} .1824456{col 37}{space 1}    1.47{col 46}{space 3}0.141{col 54}{space 4}-.0890843{col 67}{space 3}  .626406
+{txt}{space 9}23  {c |}{col 14}{res}{space 2} .1255827{col 26}{space 2} .1824456{col 37}{space 1}    0.69{col 46}{space 3}0.491{col 54}{space 4}-.2321625{col 67}{space 3} .4833279
+{txt}{space 9}24  {c |}{col 14}{res}{space 2}-.1691751{col 26}{space 2} .1824456{col 37}{space 1}   -0.93{col 46}{space 3}0.354{col 54}{space 4}-.5269203{col 67}{space 3} .1885701
+{txt}{space 9}25  {c |}{col 14}{res}{space 2} .1112983{col 26}{space 2} .1824456{col 37}{space 1}    0.61{col 46}{space 3}0.542{col 54}{space 4}-.2464469{col 67}{space 3} .4690435
+{txt}{space 9}26  {c |}{col 14}{res}{space 2} .0636595{col 26}{space 2} .1824456{col 37}{space 1}    0.35{col 46}{space 3}0.727{col 54}{space 4}-.2940857{col 67}{space 3} .4214047
+{txt}{space 9}27  {c |}{col 14}{res}{space 2}-.5805455{col 26}{space 2} .1824456{col 37}{space 1}   -3.18{col 46}{space 3}0.001{col 54}{space 4}-.9382907{col 67}{space 3}-.2228003
+{txt}{space 9}28  {c |}{col 14}{res}{space 2}-.2382065{col 26}{space 2} .1824456{col 37}{space 1}   -1.31{col 46}{space 3}0.192{col 54}{space 4}-.5959517{col 67}{space 3} .1195387
+{txt}{space 9}29  {c |}{col 14}{res}{space 2} .1599112{col 26}{space 2} .1824456{col 37}{space 1}    0.88{col 46}{space 3}0.381{col 54}{space 4} -.197834{col 67}{space 3} .5176564
+{txt}{space 9}30  {c |}{col 14}{res}{space 2} .3889058{col 26}{space 2} .1824456{col 37}{space 1}    2.13{col 46}{space 3}0.033{col 54}{space 4} .0311606{col 67}{space 3}  .746651
+{txt}{space 9}31  {c |}{col 14}{res}{space 2}-.4520586{col 26}{space 2} .1824456{col 37}{space 1}   -2.48{col 46}{space 3}0.013{col 54}{space 4}-.8098038{col 67}{space 3}-.0943134
+{err}{hline 2}Break{hline 2}
+{txt}{search r(1), local:r(1);}
+
+{com}. su mean
+
+{txt}    Variable {c |}        Obs        Mean    Std. Dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 8}mean {c |}{res}      2,880    .0050564    .6159677  -2.088069   1.880798
+
+{com}. do "C:\Users\Ariel\AppData\Local\Temp\STD07000000.tmp"
+{txt}
+{com}. * Obtain outcome data from prior rounds of Afrobarometer, transfer/expand to our sample design
+. use "${c -(}project_path{c )-}\Secondary Data\Afrobarometer\r6\Afrobarometer_Niger_Round6.dta" , clear
+{txt}(Written by R.              )
+
+{com}. 
+. // Afrobarometer sample design: sample commune, sample 1-2 EAs within, sample 8 respondents per EA
+. // Here, we will use all data from three of our four regions: NIAMEY (1107), ZINDER (1106), and AGADEZ (1100)
+. // DIFFA region was not included in AB R6
+. 
+. keep if REGION==1100 | REGION==1106 | REGION==1107
+{txt}(808 observations deleted)
+
+{com}. 
+. * Identify questions of interest
+. // Citizen perceptions of government responsiveness to their own needs: 41, 44, 47, 50, 52, 59, 66, 67
+. // Generate aggregate measure by standardizing each and then averaging
+. 
+. ge mean = 0
+{txt}
+{com}. foreach v in 41 44 47A 47B 50 /* 52 */ 59A 59B /* 66 */ 67A 67B {c -(}
+{txt}  2{com}.         qui sum Q`v'
+{txt}  3{com}.         gen q`v' = (Q`v' - `r(mean)') /(`r(sd)')
+{txt}  4{com}.         loc list "`list' + q`v'_st"
+{txt}  5{com}.         replace mean = mean + q`v'
+{txt}  6{com}. {c )-}
+{txt}(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+
+{com}. 
+. replace mean = 1/9*mean
+{txt}(392 real changes made)
+
+{com}. qui su mean
+{txt}
+{com}. loc mean `r(mean)'
+{txt}
+{com}. 
+. * Expand from 8-16 to 30 per commune
+. * Parameterize intra-EA correlation
+. loneway mean EANUMB
+
+                    {txt}One-way Analysis of Variance for mean: 
+
+                                             Number of obs = {res}         392
+                                                 {txt}R-squared = {res}      0.1777
+
+{txt}{col 5}Source{col 27}SS{col 38}df{col 46}MS{col 60}F{col 66}Prob > F
+{hline 73}
+Between EANUMB{res}{col 23} 23.163261{col 34}    48{col 43} .48256795{col 54}     1.54{col 68}0.0156
+{txt}Within EANUMB{res}{col 23} 107.20382{col 34}   343{col 43} .31254758
+{txt}{hline 73}
+Total{res}{col 23} 130.36708{col 34}   391{col 43} .33341964
+
+{txt}{col 10}Intraclass{col 27}Asy.{col 39}
+{col 10}correlation{col 27}S.E.{col 38}[95% Conf. Interval]
+         {hline 48}
+          {res}  0.06367{txt}   {res}  0.03688       0.00000     0.13594
+
+{txt}{col 10}Estimated SD of EANUMB effect{res}{col 49} .1457825
+{txt}{col 10}Estimated SD within EANUMB{res}{col 49} .5590595
+{txt}{col 10}Est. reliability of a EANUMB mean{res}{col 49}  0.35232{txt}
+{col 15}(evaluated at n={res}8.00{txt})
+
+{com}. 
+. * Save parameters
+. loc sd_w = `r(sd_w)'
+{txt}
+{com}. loc sd_b = `r(sd_b)'
+{txt}
+{com}. 
+. 
+. *Return to randomization frame
+. use "${c -(}file_path{c )-}\Randomization Frame", clear 
+{txt}
+{com}. 
+. expand 3, gen(expand_village)
+{txt}(96 observations created)
+
+{com}. gen village_id = _n
+{txt}
+{com}. expand 10, gen(expand_hh)
+{txt}(1,296 observations created)
+
+{com}. gen hh_id = _n
+{txt}
+{com}. tempvar z v t
+{txt}
+{com}. ge      `z'     = rnormal()*`sd_w'
+{err}variable {bf}__000000{sf} already defined
+{txt}{search r(110), local:r(110);}
+
+end of do-file
+
+{search r(110), local:r(110);}
+
+{com}. clear _all
+{err}_all not allowed
+{txt}{search r(198), local:r(198);}
+
+{com}. clear all
+
+. do "C:\Users\Ariel\AppData\Local\Temp\STD07000000.tmp"
+{txt}
+{com}. * Obtain outcome data from prior rounds of Afrobarometer, transfer/expand to our sample design
+. use "${c -(}project_path{c )-}\Secondary Data\Afrobarometer\r6\Afrobarometer_Niger_Round6.dta" , clear
+{txt}(Written by R.              )
+
+{com}. 
+. // Afrobarometer sample design: sample commune, sample 1-2 EAs within, sample 8 respondents per EA
+. // Here, we will use all data from three of our four regions: NIAMEY (1107), ZINDER (1106), and AGADEZ (1100)
+. // DIFFA region was not included in AB R6
+. 
+. keep if REGION==1100 | REGION==1106 | REGION==1107
+{txt}(808 observations deleted)
+
+{com}. 
+. * Identify questions of interest
+. // Citizen perceptions of government responsiveness to their own needs: 41, 44, 47, 50, 52, 59, 66, 67
+. // Generate aggregate measure by standardizing each and then averaging
+. 
+. ge mean = 0
+{txt}
+{com}. foreach v in 41 44 47A 47B 50 /* 52 */ 59A 59B /* 66 */ 67A 67B {c -(}
+{txt}  2{com}.         qui sum Q`v'
+{txt}  3{com}.         gen q`v' = (Q`v' - `r(mean)') /(`r(sd)')
+{txt}  4{com}.         loc list "`list' + q`v'_st"
+{txt}  5{com}.         replace mean = mean + q`v'
+{txt}  6{com}. {c )-}
+{txt}(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+
+{com}. 
+. replace mean = 1/9*mean
+{txt}(392 real changes made)
+
+{com}. qui su mean
+{txt}
+{com}. loc mean `r(mean)'
+{txt}
+{com}. 
+. * Expand from 8-16 to 30 per commune
+. * Parameterize intra-EA correlation
+. loneway mean EANUMB
+
+                    {txt}One-way Analysis of Variance for mean: 
+
+                                             Number of obs = {res}         392
+                                                 {txt}R-squared = {res}      0.1777
+
+{txt}{col 5}Source{col 27}SS{col 38}df{col 46}MS{col 60}F{col 66}Prob > F
+{hline 73}
+Between EANUMB{res}{col 23} 23.163261{col 34}    48{col 43} .48256795{col 54}     1.54{col 68}0.0156
+{txt}Within EANUMB{res}{col 23} 107.20382{col 34}   343{col 43} .31254758
+{txt}{hline 73}
+Total{res}{col 23} 130.36708{col 34}   391{col 43} .33341964
+
+{txt}{col 10}Intraclass{col 27}Asy.{col 39}
+{col 10}correlation{col 27}S.E.{col 38}[95% Conf. Interval]
+         {hline 48}
+          {res}  0.06367{txt}   {res}  0.03688       0.00000     0.13594
+
+{txt}{col 10}Estimated SD of EANUMB effect{res}{col 49} .1457825
+{txt}{col 10}Estimated SD within EANUMB{res}{col 49} .5590595
+{txt}{col 10}Est. reliability of a EANUMB mean{res}{col 49}  0.35232{txt}
+{col 15}(evaluated at n={res}8.00{txt})
+
+{com}. 
+. * Save parameters
+. loc sd_w = `r(sd_w)'
+{txt}
+{com}. loc sd_b = `r(sd_b)'
+{txt}
+{com}. 
+. 
+. *Return to randomization frame
+. use "${c -(}file_path{c )-}\Randomization Frame", clear 
+{txt}
+{com}. 
+. expand 3, gen(expand_village)
+{txt}(96 observations created)
+
+{com}. gen village_id = _n
+{txt}
+{com}. expand 10, gen(expand_hh)
+{txt}(1,296 observations created)
+
+{com}. gen hh_id = _n
+{txt}
+{com}. tempvar z v t
+{txt}
+{com}. ge      `z'     = rnormal()*`sd_w'
+{err}variable {bf}__000000{sf} already defined
+{txt}{search r(110), local:r(110);}
+
+end of do-file
+
+{search r(110), local:r(110);}
+
+{com}. do "C:\Users\Ariel\AppData\Local\Temp\STD07000000.tmp"
+{txt}
+{com}. ********************************************************************************
+. * Obtain outcome data from prior rounds of Afrobarometer, transfer/expand to our sample design
+. use "${c -(}project_path{c )-}\Secondary Data\Afrobarometer\r6\Afrobarometer_Niger_Round6.dta" , clear
+{txt}(Written by R.              )
+
+{com}. 
+. // Afrobarometer sample design: sample commune, sample 1-2 EAs within, sample 8 respondents per EA
+. // Here, we will use all data from three of our four regions: NIAMEY (1107), ZINDER (1106), and AGADEZ (1100)
+. // DIFFA region was not included in AB R6
+. 
+. keep if REGION==1100 | REGION==1106 | REGION==1107
+{txt}(808 observations deleted)
+
+{com}. 
+. * Identify questions of interest
+. // Citizen perceptions of government responsiveness to their own needs: 41, 44, 47, 50, 52, 59, 66, 67
+. // Generate aggregate measure by standardizing each and then averaging
+. 
+. ge mean = 0
+{txt}
+{com}. foreach v in 41 44 47A 47B 50 /* 52 */ 59A 59B /* 66 */ 67A 67B {c -(}
+{txt}  2{com}.         qui sum Q`v'
+{txt}  3{com}.         gen q`v' = (Q`v' - `r(mean)') /(`r(sd)')
+{txt}  4{com}.         loc list "`list' + q`v'_st"
+{txt}  5{com}.         replace mean = mean + q`v'
+{txt}  6{com}. {c )-}
+{txt}(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+(392 real changes made)
+
+{com}. 
+. replace mean = 1/9*mean
+{txt}(392 real changes made)
+
+{com}. qui su mean
+{txt}
+{com}. loc mean `r(mean)'
+{txt}
+{com}. 
+. * Expand from 8-16 to 30 per commune
+. * Parameterize intra-EA correlation
+. loneway mean EANUMB
+
+                    {txt}One-way Analysis of Variance for mean: 
+
+                                             Number of obs = {res}         392
+                                                 {txt}R-squared = {res}      0.1777
+
+{txt}{col 5}Source{col 27}SS{col 38}df{col 46}MS{col 60}F{col 66}Prob > F
+{hline 73}
+Between EANUMB{res}{col 23} 23.163261{col 34}    48{col 43} .48256795{col 54}     1.54{col 68}0.0156
+{txt}Within EANUMB{res}{col 23} 107.20382{col 34}   343{col 43} .31254758
+{txt}{hline 73}
+Total{res}{col 23} 130.36708{col 34}   391{col 43} .33341964
+
+{txt}{col 10}Intraclass{col 27}Asy.{col 39}
+{col 10}correlation{col 27}S.E.{col 38}[95% Conf. Interval]
+         {hline 48}
+          {res}  0.06367{txt}   {res}  0.03688       0.00000     0.13594
+
+{txt}{col 10}Estimated SD of EANUMB effect{res}{col 49} .1457825
+{txt}{col 10}Estimated SD within EANUMB{res}{col 49} .5590595
+{txt}{col 10}Est. reliability of a EANUMB mean{res}{col 49}  0.35232{txt}
+{col 15}(evaluated at n={res}8.00{txt})
+
+{com}. 
+. * Save parameters
+. loc sd_w = `r(sd_w)'
+{txt}
+{com}. loc sd_b = `r(sd_b)'
+{txt}
+{com}. 
+. 
+. *Return to randomization frame
+. use "${c -(}file_path{c )-}\Randomization Frame", clear 
+{txt}
+{com}. 
+. expand 3, gen(expand_village)
+{txt}(96 observations created)
+
+{com}. gen village_id = _n
+{txt}
+{com}. expand 10, gen(expand_hh)
+{txt}(1,296 observations created)
+
+{com}. gen hh_id = _n
+{txt}
+{com}. cap drop `z' `v' `t'
+{txt}
+{com}. tempvar z v t
+{txt}
+{com}. ge      `z'     = rnormal()*`sd_w'
+{err}variable {bf}__000000{sf} already defined
+{txt}{search r(110), local:r(110);}
+
+end of do-file
+
+{search r(110), local:r(110);}
+
+{com}. do "C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\Response to FOIA request 10-5-2016_edited.do"
+{txt}
+{com}. /*
+> 
+> */
+. 
+. global project_path "C:\Users\Ariel\Documents\Philippines CDD"
+{txt}
+{com}. global muni_datapath "${c -(}project_path{c )-}\Municipality Data"
+{txt}
+{com}. global sample_datapath "${c -(}project_path{c )-}\Third round data collection\Analysis\Datasets\Interim Datasets"
+{txt}
+{com}. *global project_path "C:\IPA_KC\3-Third Round"
+. *global muni_datapath "${c -(}project_path{c )-}\Ariel-Matching"
+. *global sample_datapath "${c -(}project_path{c )-}\Ariel-Matching"
+. 
+. use "${c -(}muni_datapath{c )-}\Matching\matching_new.dta" , clear
+{txt}(Matching data from 628 munis, including expansion areas only)
+
+{com}. *use "${c -(}muni_datapath{c )-}\matching_new.dta" , clear
+. 
+. keep prov mun psgc pi pop07nso bgytot land
+{txt}
+{com}. 
+. g reg_old=substr(psgc,1,2)
+{txt}
+{com}. g prov_old=substr(psgc,3,2)
+{txt}
+{com}. g mun_old=substr(psgc,5,2)
+{txt}
+{com}. 
+. clonevar reg_new=reg_old
+{txt}
+{com}. replace reg_new="14" if reg_old=="98"
+{txt}(40 real changes made)
+
+{com}. replace reg_new="16" if reg_old=="13"
+{txt}(66 real changes made)
+
+{com}. replace reg_new="17" if reg_old=="04" & inlist(prov_old,"51","52","53","59")
+{txt}(60 real changes made)
+
+{com}. g psgc_new_str=reg_new+prov_old+mun_old
+{txt}
+{com}. destring psgc_new_str, gen(psgc_new)
+{txt}psgc_new_str has all characters numeric; psgc_new {res}generated {txt}as {res}long
+{txt}
+{com}. 
+. *destring psgc, force replace
+. *replace psgc = psgc/1000  // what's this for?
+. 
+. save "${c -(}muni_datapath{c )-}\matching.dta" , replace
+{txt}file C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching.dta saved
+
+{com}. 
+. *use "${c -(}muni_datapath{c )-}\matching.dta", clear
+. * not matching
+. *list if inlist(prov,"Abra","Agusan del Norte","Surigao del Norte/Dinagat Islands", "Occidental Mindoro","Oriental Mindoro","Palawan","Quezon","Romblon"), nol
+. /* old psgc coding - new coding
+> Abra=9801 /9801 - 1401 (CAR)
+> Agusan del Norte= /1302 - 1602 (Caraga)
+> Surigao del Norte= /1367,1385 = Surigao del Norte/Dinagat Islands - 1667 (Caraga)
+> Occidental Mindoro=451/0451 - 1751 (IV-B)
+> Oriental Mindoro=452/0452 - 1752 (IV-B)
+> Palawan=453/0453 - 1753 (IV-B)
+> Quezon=456/0456 - 456 (IV-A)
+> Romblon=459/0459 - 1759 (IV-B)
+> */
+. use "${c -(}sample_datapath{c )-}\Interim Details on Full Sample 198 Sample v5", clear
+{txt}
+{com}. 
+. *mmerge mun_psgc using "${c -(}muni_datapath{c )-}\Matching\matching.dta" , um(psgc)
+. mmerge mun_psgc using "${c -(}muni_datapath{c )-}\matching.dta" , um(psgc_new) uk(psgc_new_str prov mun pi pop07nso bgytot land)
+
+{txt}{hline 21}{c TT}{hline 57}
+{txt}{hi:merge specs}          {c |}
+{txt}       matching type {c |} {res}auto
+{txt}  mv's on match vars {c |} {res}none
+{txt}  unmatched obs from {c |} {res}both
+{txt}{hline 21}{c +}{hline 57}
+{txt}  {hi:master}        file {c |} {res}C:\Users\Ariel\Documents\Philippines CDD\Third round data collection\Analysis\Datasets\Interim Datasets\Interim Details on Full Sample 198 Sample v5.dta
+{txt}{ralign 20:obs} {c |} {res}   198
+{txt}{ralign 20:vars} {c |} {res}    13
+{txt}{ralign 20:match vars} {c |} {res}mun_psgc  {txt}(key)
+{txt}  {hline 19}{c +}{hline 57}
+{txt}  {hi:using}         file {c |} {res}C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching.dta
+{txt}{ralign 20:obs} {c |} {res}   583{txt}
+{txt}{ralign 20:vars} {c |} {res}     8{txt}  (selection via udrop/ukeep)
+{txt}{ralign 20:match vars} {c |} {res}psgc_new  {txt}(key)
+{txt}{hline 21}{c +}{hline 57}
+{txt}{hi:result}          file {c |} {res}C:\Users\Ariel\Documents\Philippines CDD\Third round data collection\Analysis\Datasets\Interim Datasets\Interim Details on Full Sample 198 Sample v5.dta
+{txt}{ralign 20:obs} {c |} {res}   583
+{txt}{ralign 20:vars} {c |} {res}    22{txt}  (including _merge)
+{col 10}{txt}{hline 12}{c +}{hline 57}
+{ralign 20:_merge}{txt} {c |}{res}    385{txt}  {lalign 37:obs only in using data} {ralign 10:(code==2)}
+{col 21}{txt} {c |}{res}    198{txt}  {lalign 37:obs both in master and using data} {ralign 10:(code==3)}
+{txt}{hline 21}{c BT}{hline 57}
+
+{com}. keep if _merge==3
+{txt}(385 observations deleted)
+
+{com}. 
+. keep island reg_psgc psgc_new mun pairnum treatment pi bgytot pop07nso land
+{txt}
+{com}. 
+. rename psgc_new mun_psgc
+{res}{txt}
+{com}. 
+. la var          pi              "Municipal poverty incidence (Philippines Statistics Authority (previously NSO) National Statistics Coordination Board (2009)"
+{txt}note: label truncated to 80 characters
+
+{com}. la var          bgytot  "Number of barangay in municipality (Philippines Statistics Authority)"
+{txt}
+{com}. la var          pop07nso "Total population count in municipality (Philippines Statistics Authority, 2007 Census)"
+{txt}note: label truncated to 80 characters
+
+{com}. la var          land    "Total land area in municipality in square kilometers (Philippines Statistics Authority)"
+{txt}note: label truncated to 80 characters
+
+{com}. 
+. save "${c -(}muni_datapath{c )-}\matching data for sample.dta", replace
+{txt}(note: file C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching data for sample.dta not found)
+file C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching data for sample.dta saved
+
+{com}. 
+{txt}end of do-file
+
+{com}. export delimited using "C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching data for sample.csv", replace
+{res}{txt}(note: file C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching data for sample.csv not found)
+{txt}file C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching data for sample.csv saved
+
+{com}. do "C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\Response to FOIA request 10-5-2016_edited.do"
+{txt}
+{com}. /*
+> Program to output datasets used for matching
+> */
+. 
+. global project_path "C:\Users\Ariel\Documents\Philippines CDD"
+{txt}
+{com}. global muni_datapath "${c -(}project_path{c )-}\Municipality Data"
+{txt}
+{com}. global sample_datapath "${c -(}project_path{c )-}\Third round data collection\Analysis\Datasets\Interim Datasets"
+{txt}
+{com}. *global project_path "C:\IPA_KC\3-Third Round"
+. *global muni_datapath "${c -(}project_path{c )-}\Ariel-Matching"
+. *global sample_datapath "${c -(}project_path{c )-}\Ariel-Matching"
+. 
+. use "${c -(}muni_datapath{c )-}\Matching\matching_new.dta" , clear
+{txt}(Matching data from 628 munis, including expansion areas only)
+
+{com}. *use "${c -(}muni_datapath{c )-}\matching_new.dta" , clear
+. 
+. keep prov mun psgc pi pop07nso bgytot land
+{txt}
+{com}. 
+. g reg_old=substr(psgc,1,2)
+{txt}
+{com}. g prov_old=substr(psgc,3,2)
+{txt}
+{com}. g mun_old=substr(psgc,5,2)
+{txt}
+{com}. 
+. clonevar reg_new=reg_old
+{txt}
+{com}. replace reg_new="14" if reg_old=="98"
+{txt}(40 real changes made)
+
+{com}. replace reg_new="16" if reg_old=="13"
+{txt}(66 real changes made)
+
+{com}. replace reg_new="17" if reg_old=="04" & inlist(prov_old,"51","52","53","59")
+{txt}(60 real changes made)
+
+{com}. g psgc_new_str=reg_new+prov_old+mun_old
+{txt}
+{com}. destring psgc_new_str, gen(psgc_new)
+{txt}psgc_new_str has all characters numeric; psgc_new {res}generated {txt}as {res}long
+{txt}
+{com}. 
+. *destring psgc, force replace
+. *replace psgc = psgc/1000  // what's this for?
+. 
+. save "${c -(}muni_datapath{c )-}\matching.dta" , replace
+{txt}file C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching.dta saved
+
+{com}. 
+. *use "${c -(}muni_datapath{c )-}\matching.dta", clear
+. * not matching
+. *list if inlist(prov,"Abra","Agusan del Norte","Surigao del Norte/Dinagat Islands", "Occidental Mindoro","Oriental Mindoro","Palawan","Quezon","Romblon"), nol
+. /* old psgc coding - new coding
+> Abra=9801 /9801 - 1401 (CAR)
+> Agusan del Norte= /1302 - 1602 (Caraga)
+> Surigao del Norte= /1367,1385 = Surigao del Norte/Dinagat Islands - 1667 (Caraga)
+> Occidental Mindoro=451/0451 - 1751 (IV-B)
+> Oriental Mindoro=452/0452 - 1752 (IV-B)
+> Palawan=453/0453 - 1753 (IV-B)
+> Quezon=456/0456 - 456 (IV-A)
+> Romblon=459/0459 - 1759 (IV-B)
+> */
+. use "${c -(}sample_datapath{c )-}\Interim Details on Full Sample 198 Sample v5", clear
+{txt}
+{com}. 
+. *mmerge mun_psgc using "${c -(}muni_datapath{c )-}\Matching\matching.dta" , um(psgc)
+. mmerge mun_psgc using "${c -(}muni_datapath{c )-}\matching.dta" , um(psgc_new) uk(psgc_new_str prov mun pi pop07nso bgytot land)
+
+{txt}{hline 21}{c TT}{hline 57}
+{txt}{hi:merge specs}          {c |}
+{txt}       matching type {c |} {res}auto
+{txt}  mv's on match vars {c |} {res}none
+{txt}  unmatched obs from {c |} {res}both
+{txt}{hline 21}{c +}{hline 57}
+{txt}  {hi:master}        file {c |} {res}C:\Users\Ariel\Documents\Philippines CDD\Third round data collection\Analysis\Datasets\Interim Datasets\Interim Details on Full Sample 198 Sample v5.dta
+{txt}{ralign 20:obs} {c |} {res}   198
+{txt}{ralign 20:vars} {c |} {res}    13
+{txt}{ralign 20:match vars} {c |} {res}mun_psgc  {txt}(key)
+{txt}  {hline 19}{c +}{hline 57}
+{txt}  {hi:using}         file {c |} {res}C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching.dta
+{txt}{ralign 20:obs} {c |} {res}   583{txt}
+{txt}{ralign 20:vars} {c |} {res}     8{txt}  (selection via udrop/ukeep)
+{txt}{ralign 20:match vars} {c |} {res}psgc_new  {txt}(key)
+{txt}{hline 21}{c +}{hline 57}
+{txt}{hi:result}          file {c |} {res}C:\Users\Ariel\Documents\Philippines CDD\Third round data collection\Analysis\Datasets\Interim Datasets\Interim Details on Full Sample 198 Sample v5.dta
+{txt}{ralign 20:obs} {c |} {res}   583
+{txt}{ralign 20:vars} {c |} {res}    22{txt}  (including _merge)
+{col 10}{txt}{hline 12}{c +}{hline 57}
+{ralign 20:_merge}{txt} {c |}{res}    385{txt}  {lalign 37:obs only in using data} {ralign 10:(code==2)}
+{col 21}{txt} {c |}{res}    198{txt}  {lalign 37:obs both in master and using data} {ralign 10:(code==3)}
+{txt}{hline 21}{c BT}{hline 57}
+
+{com}. keep if _merge==3
+{txt}(385 observations deleted)
+
+{com}. 
+. keep island reg_psgc psgc_new mun pairnum treatment pi bgytot pop07nso land
+{txt}
+{com}. 
+. rename psgc_new mun_psgc
+{res}{txt}
+{com}. 
+. la var          pi              "Municipal poverty incidence (Philippines Statistics Authority (previously NSO) National Statistics Coordination Board (2009)"
+{txt}note: label truncated to 80 characters
+
+{com}. la var          bgytot  "Number of barangay in municipality (Philippines Statistics Authority)"
+{txt}
+{com}. la var          pop07nso "Total population count in municipality (Philippines Statistics Authority, 2007 Census)"
+{txt}note: label truncated to 80 characters
+
+{com}. la var          land    "Total land area in municipality in square kilometers (Philippines Statistics Authority)"
+{txt}note: label truncated to 80 characters
+
+{com}. 
+. save "${c -(}muni_datapath{c )-}\matching data for sample.dta", replace
+{txt}file C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching data for sample.dta saved
+
+{com}. export delimited using "${c -(}muni_datapath{c )-}\matching data for sample.csv", replace
+{res}{txt}file C:\Users\Ariel\Documents\Philippines CDD\Municipality Data\matching data for sample.csv saved
+
+{com}. 
+. cap log close
+{smcl}
+{com}{sf}{ul off}
