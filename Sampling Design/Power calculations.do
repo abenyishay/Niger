@@ -33,7 +33,7 @@ cap mkdir "${tablepath}"
 
 * Specify parameters
 
-global inter_round_sd 1.5		// Specify standard deviation of mean for same HH across rds (as share of SD of mean across HH within EA for same round)
+global inter_round_sd 1		// Specify standard deviation of mean for same HH across rds (as share of SD of mean across HH within EA for same round)
 
 ********************************************************************************
 cap log close
@@ -82,15 +82,17 @@ keep if REGION==1100 | REGION==1106 | REGION==1107
 
 ge mean = 0
 foreach v in 41 44 47A 47B 50 /* 52 */ 59A 59B /* 66 */ 67A 67B {
-	qui sum Q`v'
-	gen q`v' = (Q`v' - `r(mean)') /(`r(sd)')
+	gen lnQ`v' = ln(Q`v' + 1)
+	qui sum lnQ`v', det
+	gen q`v' = (lnQ`v' - `r(mean)') /(`r(sd)')
 	loc list "`list' + q`v'_st"
 	replace mean = mean + q`v'
 }
 
 replace mean = 1/9*mean
-qui su mean
+su mean
 global mean `r(mean)'
+
 
 * Expand from 8-16 to 30 per commune
 * Parameterize intra-EA correlation
@@ -116,10 +118,12 @@ postfile `simulation' tau using "${tablepath}\simulation.dta", replace	// Declar
 	
 
 	forvalues rep = 1/`num_reps'  {		// Run the repetitions
+
 		*Return to randomization frame
 		use "${file_path}\Randomization Frame", clear 
 		* Randomize within cell
 		gsample cell_count_draw, str(cell) wor gen(D_a)
+		
 		* expand into village, then hh
 		expand 3, gen(expand_village)
 		gen village_id = _n
@@ -132,7 +136,7 @@ postfile `simulation' tau using "${tablepath}\simulation.dta", replace	// Declar
 		bys village_id: replace `v'=`v'[1] 
 		* expand into time series
 		expand 2, gen(t)
-		ge	`t' = rnormal()*0.3*$sd_w
+		ge	`t' = rnormal()*$inter_round_sd*$sd_w
 		gen mean = $mean + `z' + `v' + `t' 
 		* implement beta
 		gen y = mean
@@ -165,9 +169,11 @@ forv b = 0.05(0.05)0.3 {
  post `betas' (`b') (`pval')
 
  loc beta_list "`beta_list' `b'"
+ loc beta_p_list "`beta_p_list' `b' "p=`pval'" "
  }
  
-tw (hist tau), xline(`beta_list') // xsc(r(-0.35 to 0.35))
+tw (hist tau, percent xline(`beta_list', noextend) xaxis(1 2) xla(-0.25(0.05)0.35, axis(1)) xlab(`beta_p_list', axis(2)) xti("", axis(2)) xti("Treatment effect (SD)", axis(1)) ///
+	, saving("${tablepath}\Power", replace))
 
 postclose `betas'	
  
