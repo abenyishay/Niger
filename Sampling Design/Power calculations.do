@@ -35,6 +35,8 @@ cap mkdir "${tablepath}"
 
 global inter_round_sd 1		// Specify standard deviation of mean for same HH across rds (as share of SD of mean across HH within EA for same round)
 
+loc num_reps 10000	// Set how many repetitions 
+
 ********************************************************************************
 cap log close
 log using "${logpath}\Niger PRG Sampling Design ($S_DATE)", replace
@@ -110,8 +112,6 @@ global sd_y = `r(sd)'
 
 
 * Use RI to get distribution of betas under sharp null
-
-loc num_reps 1000	// Set how many repetitions 
  
 tempname simulation	// Create filename
 postfile `simulation' tau using "${tablepath}\simulation.dta", replace	// Declare file for results
@@ -159,11 +159,11 @@ postfile `betas' beta pval using "${tablepath}\betas.dta", replace	// Declare fi
 
  
 
-forv b = 0.05(0.05)0.3 {
+forv b = 0.05(0.05)0.2 {
  count if abs(tau)>abs(`b')		// Count how many instances of simulated tau
 									// generate values exceeding our ATE
  loc n = `r(N)'			// Save that value as local n 
- loc pval = (`n'+1)/(`num_reps'+1)	// Compare it to the total number of values
+ loc pval = round((`n'+1)/(`num_reps'+1),0.001)	// Compare it to the total number of values
 									// (one per repetition)
  di "p-value at beta = `b': `pval'"
  post `betas' (`b') (`pval')
@@ -172,7 +172,8 @@ forv b = 0.05(0.05)0.3 {
  loc beta_p_list "`beta_p_list' `b' "p=`pval'" "
  }
  
-tw (hist tau, percent xline(`beta_list', noextend) xaxis(1 2) xla(-0.25(0.05)0.35, axis(1)) xlab(`beta_p_list', axis(2)) xti("", axis(2)) xti("Treatment effect (SD)", axis(1)) ///
+tw (hist tau, percent xline(-0.2 0.2, lc(red) noextend) xline(-0.1 0.1, lc(blue) noextend) xline(-0.05 0.05, lc(green) noextend) ///
+	xaxis(1 2) xla(-0.25(0.05)0.25, axis(1)) xlab(`beta_p_list', axis(2)) xti("", axis(2)) xti("Treatment effect (SD)", axis(1)) ///
 	, saving("${tablepath}\Power", replace))
 
 postclose `betas'	
