@@ -10,13 +10,15 @@
 - This do-file produces:
 	+ 
 	
-- v1 1-3-18 [ab]: Initial
-- v2 1-10-18 [ab]
-- v3 1-10-18 [ab]: adding actual data
-- v4 1-18-18 [ab]: running variable-specific outcomes 
-- v5 1-18-18 [ab]: adding commune-level HH data analysis
-- v6 1-18-18 [ab]: adding leader analysis 
-- v7 1-23-18 [ab]: cleaning up
+- v1 1-3-19 [ab]: Initial
+- v2 1-10-19 [ab]
+- v3 1-10-19 [ab]: adding actual data
+- v4 1-18-19 [ab]: running variable-specific outcomes 
+- v5 1-18-19 [ab]: adding commune-level HH data analysis
+- v6 1-18-19 [ab]: adding leader analysis 
+- v7 1-23-19 [ab]: cleaning up
+- v8 1-29-19 [ab]: 
+- v9 1-30-19 [ab]: checking MSD participation and awareness
 */
 ********************************************************************************
 ****************************************
@@ -334,6 +336,34 @@ ritest Treatment _b[Treatment], reps(`num_reps') strata(cell) cluster(Commune): 
 }
 
 
+******************
+* MSD Treatment Checks
+use "${file_path}\HH_w_Randomization.dta", clear
+
+foreach v in 60 61A 62 63A 63B_1 63B_2 {
+	tab Q`v' Tre, col
+}
+
+tab Q42 Treat if post, col
+recode Q42 (10/. = .)
+replace Q42 = 5 - Q42
+
+areg Q42 post##Treat, absorb(cell) vce(cluster Commune)
+
+tab Q66 Treat
+forv v = 1/11 {
+	tab Q67_`v' Treat, col
+}
+
+tab Q68 Treat if post, col
+recode Q68 (10/. = .)
+replace Q68 = 5 - Q68
+
+
+
+
+
+
 *****************************************************************
 *****************************************************************
 *** Leader Data
@@ -546,19 +576,69 @@ ritest Treatment _b[Treatment], reps(`num_reps') strata(cell):  areg index_H3 Tr
 
 
 
-/*
-Elite-level hypotheses include:
+******************
+* MSD Treatment Checks
 
-1.	Multi-stakeholder dialogues will improve coordination and strategic ties between community elites.
-2.	Multi-stakeholder dialogues will strengthen the representativeness of development processes. 
-3.	Multi-stakeholder dialogues will increase the resources local and regional governments devote to local service delivery.
+use "${file_path}\Leader_w_Randomization.dta", clear
 
-Elite-level measures for above hypotheses:
-•	Elite expectations about the dependability and commitment of other elites to address citizen priorities (survey questions GV1, GV2, PD9, PD10, PD12).
-•	Elites more likely to identify a diverse set of agents (beyond state authorities) to be important for community-level development (e.g., Who are the most important actors to engage for bringing about development in your commune?) (survey questions GV3, PD2, PD3, PD4, PD5, PD6, PD7, PD8, PD11, PD12, PD13, PD14).
-•	Multi-stakeholder dialogues will increase the likelihood that community leaders prioritize projects matching citizen preferences.
+* From MSD section of Leader survey
+tab MSD1 treatment
 
-*/
+* From PD section
+forv v = 1/5 {
+	tab PD9e_`v' treatment, col
+}
+
+forv v = 1/5 {
+	tab PD10e_`v' treatment, col
+}
+
+
+
+******************
+* Committee Treatment Checks
+cap ssc install catplot
+
+eststo clear
+foreach v in CP14 CP15A /* CP15B */	 HTH18 CP1H_1 CP1H_2 CP1E_1 CP1E_2 CP1E_3 CP1E_4 { 
+	catplot treatment `v', percent(treatment) asyvars intensity(25) saving("${tablepath}\Leader - `v'", replace)
+	eststo `v': estpost tab `v' treatment
+	
+}
+
+esttab * using "${tablepath}\Leader - Committees", replace ${esttab_settings}
+
+***************
+*** Ed Outcomes
+
+* Staffing
+
+
+
+****************
+*** Health Outcomes
+
+* Staffing
+
+* Supplies
+
+* Wait times
+
+
+
+* Mortality
+g infant_mort = HTH12A / HTH12B
+la var infant_mort "Infant mortality"
+
+g u5_mort = HTH13A / HTH13B
+la var u5_mort "U5 mortality"
+
+areg infant_mort treatment , absorb(cell) vce(cluster Commune_n)
+areg u5_mort treatment , absorb(cell) vce(cluster Commune_n)
+
+
+*graph bar , over(treatment) over(CP14)
+
 
 }
 
