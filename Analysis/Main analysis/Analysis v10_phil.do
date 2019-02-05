@@ -19,6 +19,7 @@
 - v7 1-23-19 [ab]: cleaning up
 - v8 1-29-19 [ab]: 
 - v9 1-30-19 [ab]: checking MSD participation and awareness
+- v10 2-2-19 [pr]: checking effects on SMS messages
 */
 ********************************************************************************
 ****************************************
@@ -28,13 +29,15 @@ set more off
 
 set seed 082380
 
-global project_path "C:\Users\Ariel\Dropbox\AidData\Niger" 		// User-specific file path.  Add your own in next row to run on your own filepath
+*global project_path "C:\Users\Ariel\Dropbox\AidData\Niger" 		// User-specific file path.  Add your own in next row to run on your own filepath
 *global project_path XXX										// Add your own filepath and uncomment this line.
 *global project_path "C:\Users\lisamueller\Dropbox\Niger"		// Lisa's filepath
+global project_path "C:\Users\proessler\Dropbox\Niger"
 
-global file_path "${project_path}\Analysis\Main analysis"
-global logpath "${file_path}\logs"
-global tablepath "${file_path}\tables"
+*global file_path "${project_path}\Analysis\Main analysis"
+global file_path "C:\Users\proessler\Dropbox\Niger\Analysis\Main analysis\"
+global logpath "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/logs"
+global tablepath "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/tables"
 
 cap mkdir "${logpath}"
 cap mkdir "${tablepath}"
@@ -59,21 +62,26 @@ if ${HH}==1 {
 *** Household Data Files, Setting up
 ********************************************************************************
 
-import excel "${file_path}\Randomized list - 16 Sep 2016 - Final.xls", sheet("Sheet1") firstrow
-save "${file_path}\Randomized Assignment", replace
+*import excel "${file_path}Randomized list - 16 Sep 2016 - Final.xls", sheet("Sheet1") firstrow
+import excel "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomized list - 16 Sep 2016 - Final.xls", sheet("Sheet1") clear
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomized Assignment", replace
 
-use "${file_path}\Randomization Frame", clear
-drop _*
-mmerge Region Commune using "${file_path}\Randomized Assignment"
+*use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomization Frame", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomization Frame.dta"
+drop _* 
+mmerge Region Commune using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomized Assignment"
 
 rename *, lower
 
-save "${file_path}\Randomization Frame and Assignment", replace 
+*save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomization Frame and Assignment", replace 
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomization Frame and Assignment", replace 
 
 * Merge into HH file
-use "${file_path}\Niger_EndlineBaseline_Combined.dta", clear
-mmerge Commune using "${file_path}\Commune codes", umatch(Commune_n)
-mmerge Commune_randomization using "${file_path}\Randomization Frame and Assignment", _merge(_m_random) umatch(commune)
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Niger_EndlineBaseline_Combined.dta", clear
+mmerge Commune using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Commune codes", umatch(Commune_n)
+mmerge Commune_randomization using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomization Frame and Assignment", _merge(_m_random) umatch(commune)
+
+mmerge Commune_randomization using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomization Frame and Assignment", _merge(_m_random) umatch(commune)
 drop if _m_random<3
 
 g		post = (Base==2)
@@ -144,14 +152,16 @@ foreach v of local H8_outcomes {
 }
 
 
-save "${file_path}\HH_w_Randomization.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization.dta", replace
 
 
 
 ********************************************************************************
 *** Make index for Anderson (2008) multiple hypothesis test
 
-use "${file_path}\HH_w_Randomization.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization.dta", clear
+
+/*Note: I had to manually run make_index.do before running this code.*/
 
 keep if post
 
@@ -174,11 +184,11 @@ make_index H8 wgt `H8_outcomes'
 
 global HH_outcomes "`H4_outcomes' `H5_outcomes' `H6_outcomes' `H8_outcomes'"
 
-save "${file_path}\HH_w_Randomization_Indices_Endline.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Endline.dta", replace
 
 *************************
 * Redo with baseline data
-use "${file_path}\HH_w_Randomization.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization.dta", clear
 
 local H4_outcomes "Q45_a Q46_1 Q46_2 Q46_3 Q47_1 Q47_2 Q47_3 Q47_4 Q47_5 Q50_1 Q50_2 Q50_3 Q50_4 Q50_5 Q50_6 Q50_7 Q50_8 Q50_9 Q50_10 Q50_11 Q50_12 Q50_13"
 local H5_outcomes "Q49  Q51_1 Q51_2 Q55A Q55B Q55C Q58_1 Q58_2" 
@@ -205,25 +215,25 @@ make_index H8 wgt `H8_outcomes'
 keep index* Commune_n ${HH_outcomes}
 collapse index* ${HH_outcomes}, by(Commune_n)		// Because our sample is largely rolled over between rounds, we are only linking rounds at commune level.  So we take means of baseline values for each commune, and below, merge them into endline
 
-save "${file_path}\HH_indices_base.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_indices_base.dta", replace
 
 ************************
 * Merge back into endline
 
-use "${file_path}\HH_w_Randomization_Indices_Endline.dta", clear
-mmerge Commune_n using "${file_path}\HH_indices_base.dta", uname(base_)
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Endline.dta", clear
+mmerge Commune_n using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_indices_base.dta", uname(base_)
 
-save "${file_path}\HH_w_Randomization_Indices_Full.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Full.dta", replace
 
 ***********************
 * Keep only analysis vars for now
 keep index* Commune_n Commune Village cell Treatment cell_count_draw ${HH_outcomes} base*
 
-save "${file_path}\HH_w_Randomization_Indices.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices.dta", replace
 
 ********************************************************************************
 *** Redo at commune scale to preserve sample size, because indexing based on Anderson requires balanced observations across variables
-use "${file_path}\HH_w_Randomization.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization.dta", clear
 keep if post
 
 collapse ${HH_outcomes} Commune cell Treatment cell_count_draw , by(Commune_n)
@@ -247,27 +257,27 @@ make_index H8 wgt `H8_outcomes'
 
 global HH_outcomes "`H4_outcomes' `H5_outcomes' `H6_outcomes' `H8_outcomes'"
 
-save "${file_path}\HH_w_Randomization_Indices_Endline_Commune.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Endline_Commune.dta", replace
 
 ************************
 * Merge back into endline 
 
-use "${file_path}\HH_w_Randomization_Indices_Endline_Commune.dta", clear
-mmerge Commune_n using "${file_path}\HH_indices_base.dta", uname(base_)
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Endline_Commune.dta", clear
+mmerge Commune_n using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_indices_base.dta", uname(base_)
 
-save "${file_path}\HH_w_Randomization_Indices_Full_Commune.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Full_Commune.dta", replace
 ***********************
 * Keep only analysis vars for now
 keep index* Commune_n Commune cell Treatment cell_count_draw ${HH_outcomes} base*
 
-save "${file_path}\HH_w_Randomization_Indices_Commune.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Commune.dta", replace
 
 ********************************************************************************
 *** Household Analysis
 
 **********************
 * Summary tables by group
-use "${file_path}\HH_w_Randomization_Indices_Full.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Full.dta", clear
 
 local H4_outcomes "Q45_a Q46_1 Q46_2 Q46_3 Q47_1 Q47_2 Q47_3 Q47_4 Q47_5 Q50_1 Q50_2 Q50_3 Q50_4 Q50_5 Q50_6 Q50_7 Q50_8 Q50_9 Q50_10 Q50_11 Q50_12 Q50_13"
 local H5_outcomes "Q49  Q51_1 Q51_2 Q55A Q55B Q55C Q58_1 Q58_2" 
@@ -293,7 +303,7 @@ foreach h in 4 5 6 8 {
 **********************
 * Regressions with RI
 
-use "${file_path}\HH_w_Randomization_Indices_Full.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Full.dta", clear
 
 eststo clear
 
@@ -316,7 +326,7 @@ ritest Treatment _b[Treatment], reps(`num_reps') strata(cell) cluster(Commune): 
 
 
 **** Redo with commune-level data
-use "${file_path}\HH_w_Randomization_Indices_Commune.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization_Indices_Commune.dta", clear
 
 local num_reps 1000
 
@@ -338,7 +348,7 @@ ritest Treatment _b[Treatment], reps(`num_reps') strata(cell) cluster(Commune): 
 
 ******************
 * MSD Treatment Checks
-use "${file_path}\HH_w_Randomization.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/HH_w_Randomization.dta", clear
 
 foreach v in 60 61A 62 63A 63B_1 63B_2 {
 	tab Q`v' Tre, col
@@ -371,8 +381,8 @@ replace Q68 = 5 - Q68
 if ${leader}==1 {
 *****************************************************************
 
-use "${file_path}\Niger_Leader_EndlineBaseline_Combined.dta", clear
-mmerge LK2 using "${file_path}\Commune codes_leader", umatch(lk2_n)
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Niger_Leader_EndlineBaseline_Combined.dta", clear
+mmerge LK2 using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Commune codes_leader", umatch(lk2_n)
 drop if _merge==2
 destring commune_n, force replace
 g		Commune_n = LK2
@@ -459,11 +469,11 @@ foreach v in 7A 7B 8 {
 	replace GV`v' = 4 - GV`v'
 }
 
-mmerge Commune_n using "${file_path}\Commune codes", umatch(Commune_n)
-mmerge Commune_randomization using "${file_path}\Randomization Frame and Assignment", _merge(_m_random) umatch(commune)
+mmerge Commune_n using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Commune codes", umatch(Commune_n)
+mmerge Commune_randomization using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Randomization Frame and Assignment", _merge(_m_random) umatch(commune)
 drop if _m_random==2
 
-save "${file_path}\Leader_w_Randomization.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization.dta", replace
 
 * Locals
 local H1_outcomes "GV1_2 PD12 PD9b_count PD9c_mean PD9b_c_combined PD9d_mean PD9b_d_combined" 		// GV1_3 GV1_1 GV1_3 GV1_4 PD2E PD2H PD3E PD3H	 PD9B_1-5 - PDE_1-5
@@ -474,7 +484,7 @@ global Leader_outcomes "`H1_outcomes' `H2_outcomes' `H3_outcomes'"
 
 *************************
 * Collapse at commune scale to preserve sample size
-use "${file_path}\Leader_w_Randomization.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization.dta", clear
 keep if post
 
 collapse ${Leader_outcomes} Commune cell treatment cell_count_draw, by(Commune_n)
@@ -486,11 +496,11 @@ make_index H2 wgt `H2_outcomes'
 make_index H3 wgt `H3_outcomes'
 
 
-save "${file_path}\Leader_w_Randomization_Indices_Endline.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization_Indices_Endline.dta", replace
 
 *************************
 * Redo with baseline data
-use "${file_path}\Leader_w_Randomization.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization.dta", clear
 
 keep if !post
 
@@ -509,27 +519,27 @@ make_index H3 wgt `H3_outcomes_base'
 keep index* Commune_n ${Leader_outcomes}
 
 
-save "${file_path}\Leader_indices_base.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_indices_base.dta", replace
 
 ************************
 * Merge back into endline
 
-use "${file_path}\Leader_w_Randomization_Indices_Endline.dta", clear
-mmerge Commune_n using "${file_path}\Leader_indices_base.dta", uname(base_)
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization_Indices_Endline.dta", clear
+mmerge Commune_n using "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_indices_base.dta", uname(base_)
 
-save "${file_path}\Leader_w_Randomization_Indices_Full.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization_Indices_Full.dta", replace
 
 ***********************
 * Keep only analysis vars for now
 keep index* Commune_n Commune cell treatment cell_count_draw ${Leader_outcomes} base*
 rename treatment Treatment
 
-save "${file_path}\Leader_w_Randomization_Indices.dta", replace
+save "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization_Indices.dta", replace
 
 ********************************************************************************
 *** ANALYSIS
 
-use "${file_path}\Leader_w_Randomization_Indices.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization_Indices.dta", clear
 
 **********************
 * Summary tables by group
@@ -579,7 +589,7 @@ ritest Treatment _b[Treatment], reps(`num_reps') strata(cell):  areg index_H3 Tr
 ******************
 * MSD Treatment Checks
 
-use "${file_path}\Leader_w_Randomization.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization.dta", clear
 
 * From MSD section of Leader survey
 tab MSD1 treatment
@@ -610,7 +620,7 @@ esttab * using "${tablepath}\Leader - Committees", replace ${esttab_settings}
 
 ***************
 *** Ed Outcomes
-use "${file_path}\Leader_w_Randomization.dta", clear
+use "/Users/proessler/Dropbox/Niger/Analysis/Main analysis/Leader_w_Randomization.dta", clear
 
 * Staffing
 eststo clear
